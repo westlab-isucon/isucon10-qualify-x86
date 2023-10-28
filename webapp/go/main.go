@@ -57,7 +57,7 @@ type ChairListResponse struct {
 	Chairs []Chair `json:"chairs"`
 }
 
-//Estate 物件
+// Estate 物件
 type Estate struct {
 	ID          int64   `db:"id" json:"id"`
 	Thumbnail   string  `db:"thumbnail" json:"thumbnail"`
@@ -73,7 +73,7 @@ type Estate struct {
 	Popularity  int64   `db:"popularity" json:"-"`
 }
 
-//EstateSearchResponse estate/searchへのレスポンスの形式
+// EstateSearchResponse estate/searchへのレスポンスの形式
 type EstateSearchResponse struct {
 	Count   int64    `json:"count"`
 	Estates []Estate `json:"estates"`
@@ -216,7 +216,7 @@ func getEnv(key, defaultValue string) string {
 	return defaultValue
 }
 
-//ConnectDB isuumoデータベースに接続する
+// ConnectDB isuumoデータベースに接続する
 func (mc *MySQLConnectionEnv) ConnectDB() (*sqlx.DB, error) {
 	dsn := fmt.Sprintf("%v:%v@tcp(%v:%v)/%v", mc.User, mc.Password, mc.Host, mc.Port, mc.DBName)
 	return sqlx.Open("mysql", dsn)
@@ -837,8 +837,28 @@ func searchRecommendedEstateWithChair(c echo.Context) error {
 	w := chair.Width
 	h := chair.Height
 	d := chair.Depth
-	query = `SELECT * FROM estate WHERE (door_width >= ? AND door_height >= ?) OR (door_width >= ? AND door_height >= ?) OR (door_width >= ? AND door_height >= ?) OR (door_width >= ? AND door_height >= ?) OR (door_width >= ? AND door_height >= ?) OR (door_width >= ? AND door_height >= ?) ORDER BY popularity DESC, id ASC LIMIT ?`
-	err = db.Select(&estates, query, w, h, w, d, h, w, h, d, d, w, d, h, Limit)
+
+	var smallest int64
+	if w <= h && w <= d {
+		smallest = w
+	} else if h <= w && h <= d {
+		smallest = h
+	} else {
+		smallest = d
+	}
+
+	var middle int64
+	if w <= h && h <= d || d <= h && h <= w {
+		middle = h
+	} else if h <= w && w <= d || d <= w && w <= h {
+		middle = w
+	} else {
+		middle = d
+	}
+
+	// query = `SELECT * FROM estate WHERE (door_width >= ? AND door_height >= ?) OR (door_width >= ? AND door_height >= ?) OR (door_width >= ? AND door_height >= ?) OR (door_width >= ? AND door_height >= ?) OR (door_width >= ? AND door_height >= ?) OR (door_width >= ? AND door_height >= ?) ORDER BY popularity DESC, id ASC LIMIT ?`
+	query = `SELECT * FROM estate WHERE (door_width >= ? AND door_height >= ?) OR (door_width >= ? AND door_height >= ?) ORDER BY popularity DESC, id ASC LIMIT ?`
+	err = db.Select(&estates, query, smallest, middle, middle, smallest, Limit)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return c.JSON(http.StatusOK, EstateListResponse{[]Estate{}})
